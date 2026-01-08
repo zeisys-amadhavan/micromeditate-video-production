@@ -1,0 +1,4 @@
+sk_63d2ae7382d0221c03844d5e37aeff53c563d000c7948142
+
+
+curl -X POST "https://api.elevenlabs.io/v1/text-to-speech/VOICE_ID_HERE output_format=mp3_44100_128" -H "xi-api-key: sk_9b47e2b1f1d5778b65d5bbadebd2824f581c1b5bd39787f5" -H "Content-Type: application/json" -d '{ "text": "Om Namo Shivaya Namaha", "model_id": "eleven_multilingual_v2", "language_code": "hi", "voice_settings": { "stability": 0.6, "similarity_boost": 0.8 } }' --output out.mp3
