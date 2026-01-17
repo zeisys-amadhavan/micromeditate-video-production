@@ -18,7 +18,7 @@ brew install ffmpeg
 ### 2. Install Python packages
 
 ```bash
-python3.9 -m pip install elevenlabs pydub
+python3 -m pip install elevenlabs pydub
 ```
 
 ---
@@ -78,7 +78,7 @@ Precedence:
 Example: 4‑4‑4‑4 breathing cycle
 
 ```bash
-python3.9 generate_timed_chants.py   --chants-csv chants.csv   --voice-id nPczCjzI2devNBz1zQrb   --inhale-ms 4000   --hold-ms 4000   --exhale-ms 4000   --rest-ms 4000   --out Brian_timed.mp3
+python3 generate_timed_chants.py   --chants-csv chants.csv   --voice-id nPczCjzI2devNBz1zQrb   --inhale-ms 4000   --hold-ms 4000   --exhale-ms 4000   --rest-ms 4000   --out Brian_timed.mp3
 ```
 
 ---
