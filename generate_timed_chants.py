@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-generate_timed_chants.py
+generate_timed_chants_v2.py
 
 Generate timed chant audio using ElevenLabs TTS.
 
@@ -12,31 +12,9 @@ The CSV must include columns:
 Optional columns:
   repeat (integer; defaults to 1)
 
-Examples:
-  # Using default env var ELEVENLABS_API_KEY
-  export ELEVENLABS_API_KEY="sk-..."
-  python3 generate_timed_chants.py \
-    --chants-csv chants.csv \
-    --voice-id nPczCjzI2devNBz1zQrb \
-    --inhale-ms 4000 --hold-ms 4000 --exhale-ms 4000 --rest-ms 4000 \
-    --out Brian_timed.mp3
-
-  # Using a custom env var name
-  export MY_ELEVEN_KEY="sk-..."
-  python3 generate_timed_chants.py \
-    --api-key-env MY_ELEVEN_KEY \
-    --chants-csv chants.csv \
-    --voice-id nPczCjzI2devNBz1zQrb \
-    --inhale-ms 4000 --hold-ms 4000 --exhale-ms 4000 --rest-ms 4000 \
-    --out Brian_timed.mp3
-
-  # Passing the key directly (highest priority)
-  python3 generate_timed_chants.py \
-    --api-key "sk-..." \
-    --chants-csv chants.csv \
-    --voice-id nPczCjzI2devNBz1zQrb \
-    --inhale-ms 4000 --hold-ms 4000 --exhale-ms 4000 --rest-ms 4000 \
-    --out Brian_timed.mp3
+Fix for "phantom voice" in hold/rest:
+- Final export uses a higher MP3 bitrate (default 320k), which reduces MP3 pre-echo artifacts.
+- You can also export WAV by setting --out something.wav to verify true silence.
 """
 
 import argparse
@@ -52,24 +30,18 @@ from pydub.silence import detect_nonsilent
 
 
 def clean_tts_tail(seg: AudioSegment, label: str = "") -> AudioSegment:
-    """
-    Trim junk/noise after the spoken content.
-    Keeps audio up to the last detected non-silent region, then fades out to true silence.
-    """
+    """Trim junk/noise after spoken content and fade out to true silence."""
     if len(seg) == 0:
         return seg
 
-    # Dynamic threshold: treat anything ~20dB quieter than average as "silence" (clamped)
     silence_thresh = max(-45, seg.dBFS - 20)
-
     ranges = detect_nonsilent(seg, min_silence_len=180, silence_thresh=silence_thresh)
 
     if not ranges:
         return AudioSegment.silent(duration=0)
 
     end_ms = min(len(seg), ranges[-1][1] + 60)
-    cleaned = seg[:end_ms].fade_out(120)
-    return cleaned
+    return seg[:end_ms].fade_out(120)
 
 
 def fit_to(seg: AudioSegment, target_ms: int, label: str = "") -> AudioSegment:
@@ -79,6 +51,7 @@ def fit_to(seg: AudioSegment, target_ms: int, label: str = "") -> AudioSegment:
     if len(seg) > target_ms:
         print(f"WARNING: '{label}' was {len(seg)}ms > {target_ms}ms, trimming.")
         return seg[:target_ms]
+
     return seg + AudioSegment.silent(duration=(target_ms - len(seg)))
 
 
@@ -90,12 +63,11 @@ def load_chants_csv(path: str) -> List[Tuple[str, str]]:
             raise ValueError("CSV has no header row.")
 
         headers = {h.strip() for h in reader.fieldnames if h}
-        required = {"inhale", "exhale"}
-        missing = required - headers
+        missing = {"inhale", "exhale"} - headers
         if missing:
             raise ValueError(f"CSV missing required columns: {sorted(missing)}")
 
-        for i, row in enumerate(reader, start=2):  # header is line 1
+        for i, row in enumerate(reader, start=2):
             inhale = (row.get("inhale") or "").strip()
             exhale = (row.get("exhale") or "").strip()
             if not inhale or not exhale:
@@ -117,7 +89,7 @@ def load_chants_csv(path: str) -> List[Tuple[str, str]]:
     return chants
 
 
-def tts_mp3_segment(
+def tts_segment(
     client: ElevenLabs,
     text: str,
     voice_id: str,
@@ -145,8 +117,18 @@ def tts_mp3_segment(
         },
     )
 
-    mp3_bytes = b"".join(chunk for chunk in audio_iter if chunk)
-    seg = AudioSegment.from_file(BytesIO(mp3_bytes), format="mp3")
+    raw_bytes = b"".join(chunk for chunk in audio_iter if chunk)
+
+    outfmt = output_format.lower()
+    if outfmt.startswith("mp3"):
+        fmt = "mp3"
+    elif outfmt.startswith("pcm") or outfmt.startswith("wav"):
+        fmt = "wav"
+    else:
+        # Default to mp3 if unknown
+        fmt = "mp3"
+
+    seg = AudioSegment.from_file(BytesIO(raw_bytes), format=fmt)
     return clean_tts_tail(seg, label=text)
 
 
@@ -170,7 +152,7 @@ def build_timed_track(
     out = AudioSegment.silent(duration=0)
 
     for inhale_text, exhale_text in chants:
-        inhale_seg = tts_mp3_segment(
+        inhale_seg = tts_segment(
             client=client,
             text=inhale_text,
             voice_id=voice_id,
@@ -186,7 +168,7 @@ def build_timed_track(
         inhale_seg = fit_to(inhale_seg, inhale_ms, label=f"inhale: {inhale_text}")
         hold_seg = AudioSegment.silent(duration=hold_ms)
 
-        exhale_seg = tts_mp3_segment(
+        exhale_seg = tts_segment(
             client=client,
             text=exhale_text,
             voice_id=voice_id,
@@ -210,7 +192,6 @@ def build_timed_track(
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Generate timed chant audio with ElevenLabs TTS.")
 
-    # API key: accept either direct key or env var name (default ELEVENLABS_API_KEY)
     p.add_argument("--api-key", help="ElevenLabs API key (overrides env var if provided).")
     p.add_argument(
         "--api-key-env",
@@ -218,28 +199,27 @@ def parse_args() -> argparse.Namespace:
         help="Name of environment variable containing the ElevenLabs API key (default: ELEVENLABS_API_KEY).",
     )
 
-    p.add_argument("--chants-csv", required=True,
-                   help="Path to CSV with columns inhale, exhale (optional repeat).")
+    p.add_argument("--chants-csv", required=True, help="Path to CSV with columns inhale, exhale (optional repeat).")
 
-    # Timing
     p.add_argument("--inhale-ms", type=int, required=True, help="Inhale speak duration in ms.")
     p.add_argument("--hold-ms", type=int, required=True, help="Hold (silence) duration in ms.")
     p.add_argument("--exhale-ms", type=int, required=True, help="Exhale speak duration in ms.")
     p.add_argument("--rest-ms", type=int, required=True, help="Rest (silence) duration in ms.")
 
-    # Voice
     p.add_argument("--voice-id", required=True, help="ElevenLabs voice ID to use.")
 
-    # Output
-    p.add_argument("--out", required=True, help="Output MP3 path.")
+    p.add_argument("--out", required=True, help="Output path (must end with .mp3 or .wav).")
+    p.add_argument(
+        "--mp3-bitrate",
+        default="320k",
+        help="MP3 bitrate when --out ends with .mp3 (default: 320k).",
+    )
 
-    # TTS options (defaults match your earlier script)
     p.add_argument("--model-id", default="eleven_multilingual_v2")
     p.add_argument("--language-code", default="hi")
     p.add_argument("--output-format", default="mp3_44100_128")
     p.add_argument("--apply-text-normalization", default="off", choices=["auto", "on", "off"])
 
-    # Voice settings
     p.add_argument("--stability", type=float, default=0.90)
     p.add_argument("--similarity-boost", type=float, default=0.75)
     p.add_argument("--style", type=float, default=0.0)
@@ -259,16 +239,14 @@ def main() -> int:
             "Provide one using:\n"
             "  --api-key <KEY>\n"
             "or export an environment variable and (optionally) pass its name via:\n"
-            "  --api-key-env <ENV_VAR_NAME>\n"
-            f"(Current --api-key-env is '{args.api_key_env}')",
+            "  --api-key-env <ENV_VAR_NAME>",
             file=sys.stderr,
         )
         return 2
 
     for name in ["inhale_ms", "hold_ms", "exhale_ms", "rest_ms"]:
-        v = getattr(args, name)
-        if v < 0:
-            print(f"ERROR: {name} must be >= 0 (got {v}).", file=sys.stderr)
+        if getattr(args, name) < 0:
+            print(f"ERROR: {name} must be >= 0", file=sys.stderr)
             return 2
 
     chants = load_chants_csv(args.chants_csv)
@@ -296,7 +274,15 @@ def main() -> int:
         use_speaker_boost=args.use_speaker_boost,
     )
 
-    out.export(args.out, format="mp3", bitrate="128k")
+    out_lower = args.out.lower()
+    if out_lower.endswith(".wav"):
+        out.export(args.out, format="wav")
+    elif out_lower.endswith(".mp3"):
+        out.export(args.out, format="mp3", bitrate=args.mp3_bitrate)
+    else:
+        print("ERROR: --out must end with .mp3 or .wav", file=sys.stderr)
+        return 2
+
     print(f"Saved: {args.out}  (duration_ms={len(out)})")
     return 0
 
