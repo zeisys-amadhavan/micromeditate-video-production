@@ -1,95 +1,153 @@
-# ElevenLabs Timed Chant Generator (macOS)
+# generate_timed_chants.py — Timed Breath-Chant MP3 generator (ElevenLabs)
 
-This repository contains Python scripts used to generate **precisely timed spoken chants** using the ElevenLabs Text-to-Speech API.  
-It is designed for **meditation, breath cadence, and mantra loops**, where timing accuracy matters more than expressive speech.
+This script generates a single MP3 by looping through rows in a chants CSV.
+Each row becomes one timed breath cycle:
 
----
+**inhale (spoken)** → **hold (silence)** → **exhale (spoken)** → **rest (silence)**
 
-## System this was built on
-
-- Operating System: macOS 26.2
-- Build: 25C56
-- Python: 3.9.6
-- pip: 25.3
+It uses **ElevenLabs** for TTS and **pydub** to assemble the audio.
 
 ---
 
-## Why this exists
+## Requirements
 
-Most TTS tools optimize for natural speech.
-Meditation audio needs exact timing, silence control, and loop-safe output.
-
-This repo enforces:
-- Breath-cycle timing
-- Deterministic silence
-- Cleanup of ElevenLabs tail artifacts
-- Repeatable batch generation
+- Python 3.9+
+- FFmpeg (required by `pydub` for MP3 decoding/encoding)
+- ElevenLabs Python SDK
+- pydub
 
 ---
 
-## Repository contents
+## Install dependencies
 
-### generate_voice.py
-Generates a single spoken phrase for testing voice and pronunciation.
+### 1) Install FFmpeg
 
-### generate_hindivoice.py
-Same as above, tuned for Hindi / Sanskrit / Indic phonetics.
+**macOS (Homebrew):**
+```bash
+brew install ffmpeg
+```
 
-### generate_timedchants.py
-Core script that enforces timing rules:
+**Ubuntu/Debian:**
+```bash
+sudo apt-get update
+sudo apt-get install -y ffmpeg
+```
 
-- Inhale: 4000 ms
-- Hold silence: 4000 ms
-- Exhale + post-silence: max 8000 ms
-
-Ensures loop-safe audio without stray sounds.
-
-### Shiva Names.csv
-CSV input for batch chant generation.
-
-### elevenlabs.txt
-Early notes and API examples.
-Rotate keys before sharing.
-
----
-
-## Setup (macOS Terminal)
+### 2) Install Python packages
 
 ```bash
-python3 --version
-python3 -m venv venv
-source venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install --upgrade pip
 pip install elevenlabs pydub
 ```
 
-(Optional)
-```bash
-export ELEVENLABS_API_KEY="your_api_key_here"
+---
+
+## Prepare your chants CSV
+
+Create a file like `chants.csv` with **UTF-8** encoding.
+
+**Required columns:** `inhale`, `exhale`  
+**Optional column:** `repeat` (integer; defaults to 1)
+
+Example:
+
+```csv
+inhale,exhale,repeat
+Om namo,śivāya namaḥ,1
+Om namo,maheśvarāya namaḥ,1
+Om namo,śambhave namaḥ,2
 ```
 
 ---
 
-## Running the scripts
+## API key options (CLI arg or exported env var)
+
+The script supports BOTH:
+
+### Option A — Export the default env var
 
 ```bash
-python generate_voice.py
-python generate_hindivoice.py
-python generate_timedchants.py
+export ELEVENLABS_API_KEY="sk-..."
+```
+
+Then run without `--api-key`.
+
+### Option B — Export a custom env var name
+
+```bash
+export MY_ELEVEN_KEY="sk-..."
+```
+
+Then pass its name:
+
+```bash
+python3 generate_timed_chants.py --api-key-env MY_ELEVEN_KEY ...
+```
+
+### Option C — Pass directly on the command line (highest priority)
+
+```bash
+python3 generate_timed_chants.py --api-key "sk-..." ...
+```
+
+**Precedence:** `--api-key` > `--api-key-env` > `ELEVENLABS_API_KEY`
+
+---
+
+## Run the script
+
+Example (4-4-4-4 cycle):
+
+```bash
+python3 generate_timed_chants.py \
+  --chants-csv chants.csv \
+  --voice-id nPczCjzI2devNBz1zQrb \
+  --inhale-ms 4000 --hold-ms 4000 --exhale-ms 4000 --rest-ms 4000 \
+  --out Brian_timed.mp3
 ```
 
 ---
 
-## Design philosophy
+## All options
 
-- Silence is intentional
-- Timing > expressiveness
-- Loopability is required
-- Minimal post-processing
+```bash
+python3 generate_timed_chants.py --help
+```
+
+Key flags:
+
+- `--api-key` (optional)
+- `--api-key-env` (optional; default `ELEVENLABS_API_KEY`)
+- `--chants-csv` (required)
+- `--voice-id` (required)
+- `--inhale-ms --hold-ms --exhale-ms --rest-ms` (required)
+- `--out` (required)
+- Optional TTS tuning:
+  - `--model-id`
+  - `--language-code`
+  - `--stability`
+  - `--similarity-boost`
+  - `--style`
+  - `--no-speaker-boost`
 
 ---
 
-## Final note
+## Notes / troubleshooting
 
-This code is strict on purpose.
-It exists to produce reliable, breath-synced, loopable meditation audio.
+- If you see errors like `ffmpeg not found`, install FFmpeg and confirm it’s on your PATH:
+  ```bash
+  which ffmpeg
+  ```
+- If your MP3 sounds like it has “garbage tails,” this script already trims trailing noise and fades out the end of each spoken segment.
+
+---
+
+## Output
+
+The output is a single MP3 at the path you pass in `--out`:
+
+- Example: `Brian_timed.mp3`
+
+The script prints the total duration in milliseconds when done.
