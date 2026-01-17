@@ -36,7 +36,7 @@ Run:
 ```bash
 which ffmpeg
 which ffprobe
-````
+```
 
 If you see paths like `/opt/homebrew/bin/ffmpeg` or `/usr/local/bin/ffmpeg`, you’re good.
 If you see `ffmpeg not found` / `ffprobe not found`, install FFmpeg below.
@@ -153,9 +153,9 @@ meditation_parts/
 This tool uses **no re-encoding**. When streams are copied (`-c copy`), FFmpeg can only cut cleanly on **keyframes**.
 That means:
 
-* You will get **N parts**
-* But segment durations may be **slightly uneven** (usually small drift)
-* This is the tradeoff for **zero quality loss**
+- You will get **N parts**
+- But segment durations may be **slightly uneven** (usually small drift)
+- This is the tradeoff for **zero quality loss**
 
 If you need perfectly equal durations, you must re-encode (not what this tool does).
 
@@ -170,14 +170,14 @@ If you need more (e.g., `AA`, `AB`, ...), extend the renaming logic.
 
 ### Error: `FileNotFoundError: ffprobe` or `ffmpeg not found`
 
-* Install FFmpeg (Step 2)
-* Fix PATH (Step 3)
-* Confirm with:
+- Install FFmpeg (Step 2)
+- Fix PATH (Step 3)
+- Confirm with:
 
-  ```bash
-  which ffmpeg
-  which ffprobe
-  ```
+```bash
+which ffmpeg
+which ffprobe
+```
 
 ### Error: “Permission denied” when running script
 
@@ -200,9 +200,8 @@ python3 split_mov.py "/path/to/video.mov" 12
 1. Uses `ffprobe` to read the video duration
 2. Computes `segment_time = duration / N`
 3. Runs FFmpeg segment muxer with `-c copy`:
-
-   * No re-encode
-   * No quality changes
+   - No re-encode
+   - No quality changes
 4. Renames `tmp_000.mov` → `-A.mov`, `tmp_001.mov` → `-B.mov`, etc.
 
 ---
@@ -210,8 +209,3 @@ python3 split_mov.py "/path/to/video.mov" 12
 ## License
 
 Choose whatever you prefer (MIT is common). If you haven’t added one yet, add a `LICENSE` file.
-
-```
-
-If you want, I can also paste a **clean header comment block** to add at the top of `split_mov.py` (usage/examples + what it guarantees), so anyone opening the script understands it instantly.
-```
