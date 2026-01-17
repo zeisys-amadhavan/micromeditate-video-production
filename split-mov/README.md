@@ -1,8 +1,3 @@
-Got it — one **single, self-contained** `README.md` that includes **everything** needed to install dependencies and run `split_mov.py`, with no other docs required.
-
-Copy-paste this as your `README.md`:
-
-````markdown
 # split_mov.py (macOS) — Lossless MOV splitter
 
 Split a `.mov` video into **N parts** from macOS Terminal with **no quality loss** (no re-encoding).
