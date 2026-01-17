@@ -111,7 +111,8 @@ pip install elevenlabs
 
 ---
 
-## Run the test
+## Run the test_eleven_labs.py
 
 ```bash
-python3 test.py   --api-key "$(cat eleven_labs_key.txt)"   --text "The first move is what sets everything in motion."   --voice-id JBFqnCBsd6RMkjVDRZzb   --model-id eleven_multilingual_v2   --output-format mp3_44100_128
+python3 test_eleven_labs.py --api-key "$(cat eleven_labs_key.txt)" --text "The first move is what sets everything in motion." --voice-id JBFqnCBsd6RMkjVDRZzb --model-id eleven_multilingual_v2 --output-format mp3_44100_128 --out test.mp3
+```
