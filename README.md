@@ -44,32 +44,12 @@ Om namo,śambhave namaḥ,2
 
 ## API key
 
-Use **one** of the following:
-
-### Option A — environment variable (recommended)
+Give it as a text file in the same directory.
 
 ```bash
-export ELEVENLABS_API_KEY="sk-..."
+--api-key "$(cat eleven_labs_key.txt)" \
 ```
 
-### Option B — custom env var name
-
-```bash
-export MY_ELEVEN_KEY="sk-..."
-```
-
-Pass its name with `--api-key-env MY_ELEVEN_KEY`
-
-### Option C — command line (highest priority)
-
-```bash
---api-key sk-...
-```
-
-Precedence:
-```
---api-key > --api-key-env > ELEVENLABS_API_KEY
-```
 
 ---
 
@@ -78,7 +58,7 @@ Precedence:
 Example: 4‑4‑4‑4 breathing cycle
 
 ```bash
-python3 generate_timed_chants.py   --chants-csv chants.csv   --voice-id nPczCjzI2devNBz1zQrb   --inhale-ms 4000   --hold-ms 4000   --exhale-ms 4000   --rest-ms 4000   --out Brian_timed.mp3
+python3 generate_timed_chants.py --api-key "$(cat eleven_labs_key.txt)" --chants-csv chants.csv   --voice-id nPczCjzI2devNBz1zQrb   --inhale-ms 4000   --hold-ms 4000   --exhale-ms 4000   --rest-ms 4000   --out chants.mp3
 ```
 
 ---
@@ -96,7 +76,6 @@ Required:
 
 Optional:
 - `--api-key`
-- `--api-key-env` (default: `ELEVENLABS_API_KEY`)
 - `--model-id`
 - `--language-code`
 - `--stability`
