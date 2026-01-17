@@ -1,32 +1,66 @@
 #!/usr/bin/env python3
 """
-generate_timed_chants_v2.py
+generate_timed_chants_v3.py
 
 Generate timed chant audio using ElevenLabs TTS.
 
 Each row of the chants CSV produces one breath cycle:
   inhale_speak (inhale_ms) + hold_silence (hold_ms) + exhale_speak (exhale_ms) + rest_silence (rest_ms)
 
-The CSV must include columns:
+CSV columns:
   inhale, exhale
-Optional columns:
+Optional:
   repeat (integer; defaults to 1)
 
-Fix for "phantom voice" in hold/rest:
-- Final export uses a higher MP3 bitrate (default 320k), which reduces MP3 pre-echo artifacts.
-- You can also export WAV by setting --out something.wav to verify true silence.
+Improvements vs v2:
+- Better error handling for network/DNS/proxy issues (httpx.ConnectError / socket.gaierror).
+- Prints detected proxy env vars + suggests exact `unset ...` commands.
+- Final MP3 export defaults to 320k (reduces MP3 pre-echo artifacts).
+- WAV output supported (set --out something.wav) to verify true silence.
 """
 
 import argparse
 import csv
 import os
 import sys
+import socket
 from io import BytesIO
 from typing import List, Tuple
 
+import httpx
 from elevenlabs.client import ElevenLabs
 from pydub import AudioSegment
 from pydub.silence import detect_nonsilent
+
+
+PROXY_KEYS = [
+    "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
+    "http_proxy", "https_proxy", "all_proxy", "no_proxy",
+]
+
+
+def print_network_troubleshooting() -> None:
+    print("\n=== Network/DNS troubleshooting ===", file=sys.stderr)
+    print("DNS/proxy issue likely (httpx ConnectError / DNS resolution failure).", file=sys.stderr)
+
+    found = {k: os.getenv(k) for k in PROXY_KEYS if os.getenv(k)}
+    if found:
+        print("\nDetected proxy-related environment variables:", file=sys.stderr)
+        for k, v in found.items():
+            print(f"  {k}={v}", file=sys.stderr)
+
+        print("\nTry temporarily disabling proxies in THIS terminal session:", file=sys.stderr)
+        print("  unset HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY http_proxy https_proxy all_proxy no_proxy", file=sys.stderr)
+    else:
+        print("\nNo proxy env vars detected in your shell.", file=sys.stderr)
+
+    print("\nQuick tests you can run:", file=sys.stderr)
+    print("  python3.9 -c \"import socket; print(socket.gethostbyname('api.elevenlabs.io'))\"", file=sys.stderr)
+    print("  curl -I https://api.elevenlabs.io", file=sys.stderr)
+    print("\nIf those fail, try:", file=sys.stderr)
+    print("  - disconnect VPN / corporate Wi-Fi and retry", file=sys.stderr)
+    print("  - try a phone hotspot", file=sys.stderr)
+    print("==================================\n", file=sys.stderr)
 
 
 def clean_tts_tail(seg: AudioSegment, label: str = "") -> AudioSegment:
@@ -102,6 +136,12 @@ def tts_segment(
     style: float,
     use_speaker_boost: bool,
 ) -> AudioSegment:
+    """
+    Fetch TTS bytes from ElevenLabs and return as a pydub AudioSegment.
+
+    Raises:
+      httpx.ConnectError / socket.gaierror if there are network/DNS issues.
+    """
     audio_iter = client.text_to_speech.convert(
         text=text,
         voice_id=voice_id,
@@ -125,7 +165,6 @@ def tts_segment(
     elif outfmt.startswith("pcm") or outfmt.startswith("wav"):
         fmt = "wav"
     else:
-        # Default to mp3 if unknown
         fmt = "mp3"
 
     seg = AudioSegment.from_file(BytesIO(raw_bytes), format=fmt)
@@ -234,14 +273,7 @@ def main() -> int:
 
     api_key = args.api_key or os.getenv(args.api_key_env)
     if not api_key:
-        print(
-            "ERROR: Missing ElevenLabs API key.\n"
-            "Provide one using:\n"
-            "  --api-key <KEY>\n"
-            "or export an environment variable and (optionally) pass its name via:\n"
-            "  --api-key-env <ENV_VAR_NAME>",
-            file=sys.stderr,
-        )
+        print("ERROR: Missing ElevenLabs API key.", file=sys.stderr)
         return 2
 
     for name in ["inhale_ms", "hold_ms", "exhale_ms", "rest_ms"]:
@@ -256,23 +288,33 @@ def main() -> int:
 
     client = ElevenLabs(api_key=api_key)
 
-    out = build_timed_track(
-        client=client,
-        chants=chants,
-        voice_id=args.voice_id,
-        inhale_ms=args.inhale_ms,
-        hold_ms=args.hold_ms,
-        exhale_ms=args.exhale_ms,
-        rest_ms=args.rest_ms,
-        model_id=args.model_id,
-        language_code=args.language_code,
-        output_format=args.output_format,
-        apply_text_normalization=args.apply_text_normalization,
-        stability=args.stability,
-        similarity_boost=args.similarity_boost,
-        style=args.style,
-        use_speaker_boost=args.use_speaker_boost,
-    )
+    try:
+        out = build_timed_track(
+            client=client,
+            chants=chants,
+            voice_id=args.voice_id,
+            inhale_ms=args.inhale_ms,
+            hold_ms=args.hold_ms,
+            exhale_ms=args.exhale_ms,
+            rest_ms=args.rest_ms,
+            model_id=args.model_id,
+            language_code=args.language_code,
+            output_format=args.output_format,
+            apply_text_normalization=args.apply_text_normalization,
+            stability=args.stability,
+            similarity_boost=args.similarity_boost,
+            style=args.style,
+            use_speaker_boost=args.use_speaker_boost,
+        )
+    except (httpx.ConnectError, socket.gaierror) as e:
+        print(f"\nERROR: Unable to connect to ElevenLabs: {e}", file=sys.stderr)
+        print_network_troubleshooting()
+        return 3
+    except httpx.HTTPError as e:
+        # Covers timeouts, protocol errors, etc.
+        print(f"\nERROR: HTTP error while contacting ElevenLabs: {e}", file=sys.stderr)
+        print_network_troubleshooting()
+        return 3
 
     out_lower = args.out.lower()
     if out_lower.endswith(".wav"):
