@@ -89,3 +89,29 @@ Optional:
 
 A single MP3 file at the path passed to `--out`.
 The script prints the total duration (ms) when finished.
+
+# Simple ElevenLabs Test
+
+This script is a **minimal sanity check** for ElevenLabs Text-to-Speech.
+It verifies:
+
+- API key is valid
+- Network/DNS connectivity works
+- Local audio playback works
+
+If this script plays audio correctly, your ElevenLabs setup is working.
+
+---
+
+## Prerequisites
+
+```bash
+pip install elevenlabs
+```
+
+---
+
+## Run the test
+
+```bash
+python3 test.py   --api-key "$(cat eleven_labs_key.txt)"   --text "The first move is what sets everything in motion."   --voice-id JBFqnCBsd6RMkjVDRZzb   --model-id eleven_multilingual_v2   --output-format mp3_44100_128
