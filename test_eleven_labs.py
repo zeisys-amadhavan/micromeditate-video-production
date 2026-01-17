@@ -1,5 +1,4 @@
 from elevenlabs.client import ElevenLabs
-from elevenlabs.play import play
 import argparse
 
 
@@ -10,6 +9,7 @@ parser.add_argument("--text", required=True, help="Text to speak")
 parser.add_argument("--voice-id", required=True, help="ElevenLabs voice ID")
 parser.add_argument("--model-id", required=True, help="Model ID (e.g. eleven_multilingual_v2)")
 parser.add_argument("--output-format", required=True, help="Output format (e.g. mp3_44100_128)")
+parser.add_argument("--out", required=True, help="Output MP3 filename")
 
 args = parser.parse_args()
 
@@ -25,4 +25,10 @@ audio = client.text_to_speech.convert(
     output_format=args.output_format,
 )
 
-play(audio)
+# Write MP3 bytes to file
+with open(args.out, "wb") as f:
+    for chunk in audio:
+        if chunk:
+            f.write(chunk)
+
+print(f"Saved MP3 to: {args.out}")
